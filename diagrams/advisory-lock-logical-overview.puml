@@ -1,0 +1,58 @@
+@startuml Advisory_Lock_Logical_Overview
+!theme plain
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam defaultFontColor #111827
+
+skinparam rectangle {
+  BorderColor #CBD5E1
+  BackgroundColor #F8FAFC
+  FontColor #111827
+  RoundCorner 12
+}
+
+skinparam database {
+  BorderColor #2563EB
+  BackgroundColor #EFF6FF
+  FontColor #1E3A8A
+  FontStyle bold
+}
+
+skinparam note {
+  BorderColor #FDBA74
+  BackgroundColor #FFF7ED
+  FontColor #7C2D12
+}
+
+skinparam arrow {
+  Color #475569
+  FontColor #475569
+  Thickness 1.5
+}
+
+title <size:20><b>PostgreSQL Advisory Locks</b></size>\n<size:12>Simple logical view</size>
+
+rectangle "Application Instance A" as A
+rectangle "Application Instance B" as B
+
+database "PostgreSQL\nAdvisory Lock Manager" as LOCKS
+
+rectangle "Distributed Mutex\n\npg_try_advisory_xact_lock(10001)\nshort transaction\nauto-released on commit" as MUTEX #ECFDF5
+rectangle "Singleton Cron Worker\n\npg_try_advisory_lock(20001)\nlong job\nrelease with pg_advisory_unlock" as CRON #FEF3C7
+
+A --> LOCKS : "try lock"
+B --> LOCKS : "try same lock"
+
+LOCKS --> MUTEX : "one transaction wins"
+LOCKS --> CRON : "one worker session wins"
+
+note bottom of LOCKS
+  The database is the shared coordination point.
+  All app instances must use the same lock key
+  for the same protected work.
+end note
+
+@enduml

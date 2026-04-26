@@ -1,0 +1,41 @@
+@startuml
+
+title Session-Level Advisory Lock (Distributed Cron Worker)
+
+participant "Worker A\n(cronWorker.js)" as WA
+participant "Worker B\n(cronWorker.js)" as WB
+participant "Lock Logic\n(locks.js)" as LOCKS
+participant "pg Pool Client A\n(session)" as CLIENTA
+participant "pg Pool Client B\n(session)" as CLIENTB
+database "PostgreSQL" as PG
+participant "Cron Runs Table\n(cron_runs)" as RUNS
+
+== Periodic tick on both workers ==
+WA -> LOCKS: runSingletonCronJob(worker-a)
+WB -> LOCKS: runSingletonCronJob(worker-b)
+
+LOCKS -> CLIENTA: pool.connect()
+CLIENTA -> PG: SELECT pg_try_advisory_lock(CRON_SESSION_LOCK_KEY)
+PG --> CLIENTA: true (lock acquired)
+LOCKS -> RUNS: INSERT started row (worker-a)
+
+LOCKS -> CLIENTB: pool.connect()
+CLIENTB -> PG: SELECT pg_try_advisory_lock(CRON_SESSION_LOCK_KEY)
+PG --> CLIENTB: false (another session holds lock)
+CLIENTB --> LOCKS: release()
+LOCKS --> WB: { locked: false, message: "skipped" }
+
+LOCKS -> LOCKS: sleep(LONG_JOB_DURATION_MS)
+LOCKS -> RUNS: UPDATE status = completed
+CLIENTA -> PG: SELECT pg_advisory_unlock(CRON_SESSION_LOCK_KEY)
+CLIENTA --> LOCKS: release()
+LOCKS --> WA: { locked: true, runId }
+
+note right of PG
+Session advisory locks are held by the
+database connection session. They must be
+unlocked explicitly or released by closing
+the connection.
+end note
+
+@enduml

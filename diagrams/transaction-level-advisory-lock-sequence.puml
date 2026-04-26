@@ -1,0 +1,43 @@
+@startuml
+
+title Transaction-Level Advisory Lock (Short Transaction Mutex)
+
+participant "Local Demo\n(demoMutex.js)" as DEMO
+participant "Attempt 1\nSequelize Tx" as TX1
+participant "Attempt 2\nSequelize Tx" as TX2
+database "PostgreSQL" as PG
+participant "Counter Table\n(counters.id=1)" as COUNTER
+
+== Concurrent local attempts ==
+DEMO -> DEMO: Promise.allSettled(5 attempts)
+DEMO -> TX1: tryTransactionMutexIncrement(2000)
+DEMO -> TX2: tryTransactionMutexIncrement(2000)
+
+activate TX1
+TX1 -> PG: BEGIN
+TX1 -> PG: SELECT pg_try_advisory_xact_lock(TX_MUTEX_LOCK_KEY)
+PG --> TX1: true (lock acquired)
+TX1 -> COUNTER: SELECT counter WHERE id = 1
+COUNTER --> TX1: value = N
+
+activate TX2
+TX2 -> PG: BEGIN
+TX2 -> PG: SELECT pg_try_advisory_xact_lock(TX_MUTEX_LOCK_KEY)
+PG --> TX2: false (already held by Attempt 1)
+TX2 -> PG: ROLLBACK
+TX2 --> DEMO: { locked: false, message: "Could not acquire..." }
+deactivate TX2
+
+TX1 -> TX1: sleep(delayMs)
+TX1 -> COUNTER: UPDATE value = N + 1
+TX1 -> PG: COMMIT
+note right of PG
+xact advisory lock is auto-released
+on commit/rollback
+end note
+TX1 --> DEMO: { locked: true, currentValue: N+1 }
+deactivate TX1
+
+DEMO -> DEMO: print one success and skipped attempts
+
+@enduml

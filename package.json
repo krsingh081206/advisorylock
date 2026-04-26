@@ -1,0 +1,18 @@
+{
+  "name": "advisorylock-poc",
+  "version": "1.0.0",
+  "description": "POC for PostgreSQL advisory locks with local mutex and distributed cron worker demos",
+  "main": "src/demoMutex.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/demoMutex.js",
+    "worker": "node src/cronWorker.js",
+    "init-db": "node src/initDb.js",
+    "demo:mutex": "node src/demoMutex.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "pg": "^8.12.0",
+    "sequelize": "^6.37.3"
+  }
+}
